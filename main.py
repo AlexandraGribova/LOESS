@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import time
 import math
 
@@ -117,28 +118,41 @@ class Loess:
 
 
 def main():
-    # входные данные
-    xx = np.array([0.5578196, 2.0217271, 2.5773252, 3.4140288, 4.3014084,
-                   4.7448394, 5.1073781, 6.5411662, 6.7216176, 7.2600583,
-                   8.1335874, 9.1224379, 11.9296663, 12.3797674, 13.2728619,
-                   14.2767453, 15.3731026, 15.6476637, 18.5605355, 18.5866354,
-                   18.7572812])
-    yy = np.array([18.63654, 103.49646, 150.35391, 190.51031, 208.70115,
-                   213.71135, 228.49353, 233.55387, 234.55054, 223.89225,
-                   227.68339, 223.91982, 168.01999, 164.95750, 152.61107,
-                   160.78742, 168.55567, 152.42658, 221.70702, 222.69040,
-                   243.18828])
+   # входные данные - работа с конкретной выборкой
+
+    # выудили из выборки все данные для одной скважины (выбрала 205)
+    # удалили данные для других скважин и повторения в датах для скважины 205
+    fn = r'C:\Users\sasha\PycharmProjects\OilDiploma\data.csv'
+    df = pd.read_csv(fn, sep=';', encoding='cp1251')
+    new_df = df.loc[df['ED3'].str.strip() == '205']
+    new_df = new_df.sort_values(['ED4', 'ED5'])
+    new_df = new_df.drop_duplicates(subset=['ED4', 'ED5'])
+    # добыча нефти за каждый месяц последовательно
+    new_df['ED14'] = pd.to_numeric(new_df['ED14'].str.replace(',', '.'), errors='coerce')
+    new_df['ED15'] = pd.to_numeric(new_df['ED15'].str.replace(',', '.'), errors='coerce')
+
+    # объем добытой нефти
+    extraction = np.asarray(new_df['ED14'])
+    # порядковый номер месяца от начала работы скважины
+    time = np.asarray(range(1, len(extraction) + 1))
+    # дополнительные параметры
+    # сезонность (номер месяца)
+    another_param = np.asarray(new_df['ED5'])
+
+
+    new_df.to_csv('FILE.csv', index=False, sep=";", encoding='cp1251')
+
     # создали экземпляр класса
-    loess = Loess(xx, yy)
+    loess = Loess(time, extraction)
 
     # к каждому элементу применили метод
     # указываем степень приближаемого полинома degree
     y_new = np.array([])
-    for x_elem in xx:
+    for x_elem in time:
         y = loess.estimate(x_elem, window=7, degree=2)
         y_new = np.append(y_new, y)
-    plt.plot(xx, yy, 'o', label='выборка')
-    plt.plot(xx, y_new, '-', label='LOESS')
+    plt.plot(time, extraction, 'o', label='выборка')
+    plt.plot(time, y_new, '-', label='LOESS')
     plt.show()
 
 
