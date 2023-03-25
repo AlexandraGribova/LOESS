@@ -6,6 +6,7 @@ import math
 
 # количество факторов (размерность массива х)
 const_n = 2
+part = 0.1
 
 def tricubic(x):
     y = np.zeros_like(x)
@@ -25,19 +26,24 @@ class Loess:
     @staticmethod
     def normalize_array_multidim(array):
         norm_array = np.zeros(len(array[0]))
+        max_vec = np.empty((const_n, 1))
+        min_vec = np.empty((const_n, 1))
         # через норму ищем минимальную, максимальную точку
-        # ЕСЛИ БУДЕТ БОЛЬШЕ ПАРАМЕТРОВ ТО БУДЕТ И БОЛЬШЕ СЛАГАЕМЫХ МОЖНО СДЕЛАТЬ ЦИКЛ
         for i in range(len(array[0])):
-            norm_array[i] = np.sqrt(array[0][i]**2 + array[1][i]**2)
+            sum = 0
+            for j in range(const_n):
+                sum += array[j][i]**2
+            norm_array[i] = np.sqrt(sum)
         # ищем в каком индексе лежит мин и макс, так как индекс = номер мин/макс точки
         min_val_index = np.where(norm_array == np.min(norm_array))
         max_val_index = np.where(norm_array == np.max(norm_array))
-        new_array = (array - [array[0][min_val_index], array[1][min_val_index]])
-        new_array = new_array/([array[0][max_val_index]-array[0][min_val_index],
-                                array[1][max_val_index]-array[1][min_val_index]])
-        return new_array, \
-               [float(array[0][min_val_index]), float(array[1][min_val_index])], \
-               [float(array[0][max_val_index]), float(array[1][max_val_index])]
+        for i in range(const_n):
+            min_vec[i] = array[i][min_val_index]
+            max_vec[i] = array[i][max_val_index]
+
+        new_array = array - min_vec
+        new_array = new_array/(max_vec - min_vec)
+        return new_array, min_vec.flatten(), max_vec.flatten()
 
     # конструктор
     # нашли минимальное и максимальное значение, перемасштабировали массив - все его значения между 0 и 1
@@ -98,7 +104,10 @@ class Loess:
         n_x = self.normalize_x(x)
         # посчитаем расстояние от текущего элемента х' до всех элементов массива иксов
         # формула расстояния ab=(xa-xb)**2 + (ya - yb)**2
-        distances = (self.n_xx[0] - n_x[0])**2 + (self.n_xx[1] - n_x[1])**2
+        distances = 0
+        for i in range(const_n):
+            distances += (self.n_xx[i] - n_x[i])**2
+        distances = np.sqrt(distances)
         # задает индексы для окна в заданном массиве для x'
         min_range = self.get_min_range(distances, window)
         #  задает веса для каждого элемента в окне
@@ -116,13 +125,18 @@ class Loess:
            # (каждый столбец - возведение в степень от 0 до степент полниома degree
             for j in range(const_n):
                 for i in range(1, degree + 1):
-                    xm[:, j*const_n + i] = np.power(self.n_xx[j][min_range], i)
+                    xm[:, j*degree + i] = np.power(self.n_xx[j][min_range], i)
 
             ym = self.n_yy[min_range]
             xmt_wm = np.transpose(xm) @ wm
             beta = np.linalg.pinv(xmt_wm @ xm) @ xmt_wm @ ym
 
-            y = (xm @ np.transpose(beta))[0] #!!!! переставила местами множители
+            xp = [[1]]
+            for i in range(len(n_x)):
+                for p in range(1, degree + 1):
+                    xp.append([math.pow(n_x[i], p)])
+            xp = np.array(xp)
+            y = (beta @ xp)[0]
         else:
             xx = self.n_xx[min_range]
             yy = self.n_yy[min_range]
@@ -143,23 +157,9 @@ class Loess:
 
 
 def main():
-    # входные данные
-    # xx = np.array([[0.5578196, 2.0217271, 2.5773252, 3.4140288, 4.3014084,
-    #                4.7448394, 5.1073781, 6.5411662, 6.7216176, 7.2600583,
-    #                8.1335874, 9.1224379, 11.9296663, 12.3797674, 13.2728619,
-    #                14.2767453, 15.3731026, 15.6476637, 18.5605355, 18.5866354,
-    #                18.7572812],
-    #               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-    #                17, 18, 19, 20, 21]])
-    # yy = np.array([18.63654, 103.49646, 150.35391, 190.51031, 208.70115,
-    #                213.71135, 228.49353, 233.55387, 234.55054, 223.89225,
-    #                227.68339, 223.91982, 168.01999, 164.95750, 152.61107,
-    #                160.78742, 168.55567, 152.42658, 221.70702, 222.69040,
-    #                243.18828])
-
     fn = r'C:\Users\sasha\PycharmProjects\OilDiploma\data.csv'
     df = pd.read_csv(fn, sep=';', encoding='cp1251')
-    new_df = df.loc[df['ED3'].str.strip() == '205']
+    new_df = df.loc[df['ED3'].str.strip() == '200']
     new_df = new_df.sort_values(['ED4', 'ED5'])
     new_df = new_df.drop_duplicates(subset=['ED4', 'ED5'])
     # добыча нефти за каждый месяц последовательно
@@ -171,30 +171,12 @@ def main():
 
     time = np.array(range(1, len(yy) + 1))
     another_param = np.array(new_df['ED5'])
-    xx = np.row_stack((time, another_param))
+    another_param1 = np.array(new_df['ED12'])
+    xx = np.row_stack([time, another_param])
+    #xx = [time]
     # дополнительные параметры
-
-
     new_df.to_csv('FILE.csv', index=False, sep=";", encoding='cp1251')
 
-
-    # работа с конкретной выборкой
-
-    # выудили из выборки все данные для одной скважины (выбрала 205)
-    # удалили данные для других скважин и повторения в датах для скважины 205
-    fn = r'C:\Users\sasha\PycharmProjects\OilDiploma\data.csv'
-    df = pd.read_csv(fn, sep=';', encoding='cp1251')
-    new_df = df.loc[df['ED3'].str.strip() == '205']
-    new_df = new_df.sort_values(['ED4', 'ED5'])
-    new_df = new_df.drop_duplicates(subset=['ED4', 'ED5'])
-    # добыча нефти за каждый месяц последовательно
-    new_df['ED14'] = pd.to_numeric(new_df['ED14'].str.replace(',', '.'), errors='coerce')
-    new_df['ED15'] = pd.to_numeric(new_df['ED15'].str.replace(',', '.'), errors='coerce')
-    extraction = np.asarray(new_df['ED14'])
-    another_param = np.asarray(new_df['ED5'])
-    # порядковый номер месяца от начала работы скважины
-    time = np.asarray(range(1, len(extraction) + 1))
-    new_df.to_csv('FILE.csv', index=False, sep=";", encoding='cp1251')
     # создали экземпляр класса
     loess = Loess(xx, yy)
 
@@ -202,9 +184,12 @@ def main():
     # указываем степень приближаемого полинома degree
     y_new = np.array([])
     for i in range (len(xx[0])):
-            point_of_interest = [xx[0][i], xx[1][i]]
-            y = loess.estimate(point_of_interest, window=7, degree=2)
-            y_new = np.append(y_new, y)
+        point_of_interest = []
+        for j in range(const_n):
+            point_of_interest.append(xx[j][i])
+        window = int(part * len(yy))
+        y = loess.estimate(point_of_interest, window=50, degree=2)
+        y_new = np.append(y_new, y)
     plt.plot(xx[0], yy, 'o', label='выборка')
     plt.plot(xx[0], y_new, '-', label='LOESS')
     plt.show()
