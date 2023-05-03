@@ -1,16 +1,24 @@
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import PySimpleGUI as sg
 from numpy import arange
+import matplotlib
 import numpy as np
 import pandas as pd
 import loess
 
 def create_plot(xx, yy, x_new, y_new):
-    plt.plot(xx[0], yy, 'o', label='выборка')
-    plt.plot(x_new[0], y_new, '-', label='LOESS with param')
-    plt.legend()
-    return plt.gcf()
+    matplotlib.use('TkAgg')
+    w, h = figsize = (5, 3)  # figure size
+    fig = matplotlib.pyplot.Figure(figsize=figsize)
+    dpi = fig.get_dpi()
+    size = (w * dpi, h * dpi)  # canvas size
+    t = np.arange(0, 3, .01)
+    area = fig.add_subplot(111)
+    area.plot(x_new[0], y_new, '-', label='LOESS with param')
+    area.plot(xx[0], yy, 'o', label='Выборка')
+    area.legend()
+    return fig
 
 def draw_figure(canvas, figure):
     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
@@ -43,7 +51,7 @@ def app():
               [sg.Frame("", frame, expand_x=True), sg.Frame("", [[]], expand_x=True)],
               [sg.Button('Ввести параметры для сравнения', key='-ADD_INPUT-')],
               [sg.Button('Ввод', key='-INPUT-'), sg.Button('Выход', key='-CANCEL-')]]
-    window = sg.Window('Имя окна', layout, finalize=True, resizable=True)
+    window = sg.Window('Имя окна', layout, finalize=True)
     #-- Цикл для обработки "событий" и получения "значений" входных данных --#
     while True:
         event, values = window.read()
