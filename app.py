@@ -1,4 +1,5 @@
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.backends.backend_svg
 import matplotlib.pyplot as plt
 import PySimpleGUI as sg
 from numpy import arange
@@ -7,19 +8,20 @@ import numpy as np
 import pandas as pd
 import loess
 
-def create_plot(xx, yy, x_new, y_new):
+def create_plot(xx, yy, x_new, y_new, win_name):
     matplotlib.use('TkAgg')
-    w, h = figsize = (5, 3)  # figure size
+    w, h = figsize = (7, 5)  # figure size
     fig = matplotlib.pyplot.Figure(figsize=figsize)
-    dpi = fig.get_dpi()
-    size = (w * dpi, h * dpi)  # canvas size
-    t = np.arange(0, 3, .01)
-    area = fig.add_subplot(111)
+    area = fig.add_axes([0.15, 0.25, 0.7, 0.7])
+    area.plot(xx[0], yy, 'o')
     for i in range(len(x_new)):
-        area.plot(x_new[i], y_new[i], '-', label='LOESS with param')
-    area.plot(xx[0], yy, 'o', label='Выборка')
-    area.legend()
-    return fig
+        area.plot(x_new[i], y_new[i], '-', label=win_name[i])
+    area.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+          fancybox=True, shadow=True, ncol=4)
+    # canvas size
+    dpi = fig.get_dpi()
+    size = (w * dpi, h * dpi)
+    return fig, size
 
 def draw_figure(canvas, figure):
     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
@@ -99,6 +101,7 @@ def app():
                     yy_new = []
                     eps_new = []
                     k=0
+                    win_name=[]
                     for j in active_windows:
                         xx = []
                         if(values[('-PARAM_NUM_-', j)]):
@@ -111,31 +114,41 @@ def app():
                             const_n = values[('-PARAM_NUM_-', j)]
                             degree = values[('-DEGREE_-', j)]
                             window_size = values[('-WIN_SIZE_-', j)]
+                            win_name.append('Param number: '+str(values[('-PARAM_NUM_-', j)])+\
+                                '\nDegree: '+str(values[('-DEGREE_-', j)])+\
+                                '\nWin size: '+str(values[('-WIN_SIZE_-', j)]))
                             # передаваемые параметры:
                             # 1) Многомерный массив хх (каждая строка массива - выборка)
                             # 2) Одномерный массив yy
                             # 3) Степень полинома
                             # 4) Число параметров, от которых зависит вектор уу
                             # 5) Окно (доля выборки которая будет явлться окном)
-                            x_new, y_new, eps = loess.MultidimLOESS(xx, yy, degree, const_n, window_size)
+                            x_new, y_new, eps_crossv, eps_rmse = loess.MultidimLOESS(xx, yy, degree, const_n, window_size)
                             xx_new.append([])
                             yy_new.append([])
+                            eps_new.append([])
                             xx_new[k].extend(x_new[0])
                             yy_new[k].extend(y_new)
-                            eps_new.append(eps)
+                            eps_new[k].append(eps_crossv)
+                            eps_new[k].append(eps_rmse)
                             k+=1
                     #-- Вывод результатов --#
                     window.hide()
+                    data = []
+                    for l in range(len(active_windows)):
+                        data.append([])
+                        data[l].append(eps_new[l][0])
+                        data[l].append(eps_new[l][1])
+                    headings = ['Кроссвалидация', 'RMSE']
+                    figure, size_w = create_plot(xx, yy, xx_new, yy_new, win_name)
                     layout_result = [[sg.Menubar(menu_def_second, tearoff=False)],
                                      [sg.Text('График:')],
-                                     [sg.Canvas(key='-CANVAS-')],
-                                     [sg.Text('Кроссвалидация: '), sg.Text(eps)],
-                                     [sg.Text('Файл: '), sg.InputText('output_file.csv'), sg.FileBrowse('Выбрать файл')],
-                                     [sg.Button('Выгрузить данные в файл', key='-OUT_FILE-')],
-                                     [sg.Button('Сохранить изображение', key='-OUT_IMG-')],
+                                     [sg.Canvas(key='-CANVAS-', size=size_w)],
+                                     [sg.Table(values=data, headings=headings, expand_x=True, justification='center',
+                                               num_rows=2, key='-TABLE-', row_height=35, tooltip='This is a table')],
                                      [sg.Button('Выход', key='-CANCEL_RES-')]]
                     window_result = sg.Window('Window Title', layout_result, finalize=True)
-                    draw_figure(window_result['-CANVAS-'].TKCanvas, create_plot(xx, yy, xx_new, yy_new))
+                    draw_figure(window_result['-CANVAS-'].TKCanvas, figure)
                     #-- Цикл для обработки "событий" и получения "значений" входных данных --#
                     while True:
                         event, values = window_result.read()
@@ -145,7 +158,7 @@ def app():
                             break
                         if event == "Сохранить файл" or event == "Сохранить файл как...":
                             if event == "Сохранить файл как...":
-                                file_name = sg.popup_get_file('Выберите файл или введите название', title="Сохранить файл как...")
+                                file_name = sg.popup_get_file('Выберите файл или введите название файла', title="Сохранить файл как...")
                             else:
                                 file_name = 'output_file.csv'
                             try:
@@ -157,16 +170,18 @@ def app():
                                          'Закройте файл или выберите другую директорию для сохранения.')
                                 if event == sg.WIN_CLOSED:
                                     break
-                        if event == '-OUT_IMG-':
-                            plt.savefig('foo.png')
-
-
-
-                    # можно вырезать
-                    RMSE = 0
-                    for i in range(len(y_new)):
-                        RMSE += (y_new[i] - yy[i]) ** 2
-                    print(np.sqrt(RMSE / len(yy)))
+                        if event == "Сохранить изображение" or event == "Сохранить изображение как...":
+                            if event == "Сохранить изображение как...":
+                                img_name = sg.popup_get_file('Выберите директорию или введите название файла', title="Сохранить изображение как...")
+                            else:
+                                img_name = 'output_img.png'
+                            try:
+                                figure.savefig(img_name, bbox_inches='tight')
+                            except IOError:
+                                sg.Popup('Ошибка: файл с именем ' + img_name + ' уже открыт.\n'
+                                         'Закройте файл или выберите другую директорию для сохранения.')
+                                if event == sg.WIN_CLOSED:
+                                    break
                 except FileNotFoundError:
                     sg.Popup('Ошибка: файл с именем ' + file + ' не найден')
                     if event == sg.WIN_CLOSED:

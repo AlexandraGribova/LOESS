@@ -163,6 +163,12 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
                 y_normalize = (yy[i] - self.min_yy)/(self.max_yy - self.min_yy)
                 eps += (y_normalize - y_validation[i])**2
             return np.sqrt(eps/len(yy))
+        def RMSE(self, y_new):
+            RMSE = 0
+            for i in range(len(y_new)):
+                y_normalize = (y_new[i] - self.min_yy)/(self.max_yy - self.min_yy)
+                RMSE += (y_normalize - self.n_yy[i]) ** 2
+            return np.sqrt(RMSE / len(yy))
 
 
     # создали экземпляр класса
@@ -178,5 +184,6 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
         y = loess.estimate(point_of_interest, window, degree, 0)
         y_new = np.append(y_new, y)
     # подсчет кросс валидации
-    eps = loess.crossValidation(point_of_interest, window, degree)
-    return xx, y_new, eps
+    eps_crossv = loess.crossValidation(point_of_interest, window, degree)
+    eps_rmse = loess.RMSE(y_new)
+    return xx, y_new, eps_crossv, eps_rmse
