@@ -1,8 +1,4 @@
-import matplotlib.pyplot as plt
-import PySimpleGUI as sg
-from numpy import arange
 import numpy as np
-import pandas as pd
 import math
 
 
@@ -106,22 +102,28 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
             return value * (self.max_yy - self.min_yy) + self.min_yy
             #return math.e ** value
 
-        def estimate(self, x, window, degree, crossValidtion):
+        def estimate(self, x, window, degree, crossValidtion, index=0):
             # перемасштабировали данный элемент массива
             #n_x = self.normalize_x(x)
             n_x = x
+            n_xx = self.n_xx
+            n_yy = self.n_yy
             # посчитаем расстояние от текущего элемента х' до всех элементов массива иксов
             # формула расстояния ab=(xa-xb)**2 + (ya - yb)**2
+            if crossValidtion:
+                #window = window - 1
+                n_xx = np.delete(n_xx, index, 1)
+                n_yy = np.delete(n_yy, index)
             distances = 0
             for i in range(param_num):
-                distances += (self.n_xx[i] - n_x[i])**2
+                distances += (n_xx[i] - n_x[i])**2
             distances = np.sqrt(distances)
             # задает индексы для окна в заданном массиве для x'
-            min_range = self.get_min_range(distances, window, crossValidtion)
+            min_range = self.get_min_range(distances, window, 0)
             #  задает веса для каждого элемента в окне
             weights = self.get_weights(distances, min_range)
-            if crossValidtion:
-                window = window - 1
+            #if crossValidtion:
+                #window = window - 1
             # двумерный массив размерности window - на диагонали 1, вне диагноали 0
             # wm - матрица W
             wm = np.multiply(np.eye(window), weights)
@@ -132,9 +134,9 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
            # (каждый столбец - возведение в степень от 0 до степент полниома degree
             for j in range(param_num):
                 for i in range(1, degree + 1):
-                    xm[:, j*degree + i] = np.power(self.n_xx[j][min_range], i)
+                    xm[:, j*degree + i] = np.power(n_xx[j][min_range], i)
 
-            ym = self.n_yy[min_range]
+            ym = n_yy[min_range]
             xmt_wm = np.transpose(xm) @ wm
             beta = np.linalg.pinv(xmt_wm @ xm) @ xmt_wm @ ym
 
@@ -156,7 +158,7 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
                 for j in range(param_num):
                     point_of_interest.append(xx[j][i])
                 window = int(part * len(yy))
-                y = loess.estimate(point_of_interest, window, degree, 1)
+                y = loess.estimate(point_of_interest, window, degree, 1, i)
                 y_validation = np.append(y_validation, y)
 
             for i in range(len(yy)):

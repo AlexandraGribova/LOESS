@@ -8,6 +8,16 @@ import numpy as np
 import pandas as pd
 import loess
 
+def informationWindow():
+    inf_layout = [[sg.Text('Инструкция')],
+                  [sg.Button('Выход', key='-CANCEL_INF-')]]
+    window_inf = sg.Window('Инструкция', inf_layout, finalize=True)
+    while True:
+        event, values = window_inf.read()
+        # -- Если не закрыли окно, то проверяем корректность данных и обрабатываем при нажатии 'Ввод' --#
+        if event == sg.WIN_CLOSED or event == '-CANCEL_INF-':
+            window_inf.close()
+            break
 def create_plot(xx, yy, x_new, y_new, win_name):
     matplotlib.use('TkAgg')
     w, h = figsize = (7, 5)  # figure size
@@ -31,8 +41,8 @@ def draw_figure(canvas, figure):
 
 def app():
     #-- Меню --#
-    menu_def = [["Инструкция"]]
-    menu_def_second = [["Инструкция"],
+    menu_def = [["Информация", ["Инструкция"]]]
+    menu_def_second = [["Информация", ["Инструкция"]],
                 ["Сохранить",
                              ["Сохранить файл",
                               "Сохранить изображение",
@@ -87,9 +97,10 @@ def app():
         if event[0] == '-DEL_INPUT-':
             if block_number > 1:
                 block_number -= 1
-                print(event[1])
                 window[('-ROW-', event[1])].update(visible=False)
                 active_windows.remove(event[1])
+        if event == "Инструкция":
+            informationWindow()
         if event == '-INPUT-':
             if values[1]:
                 file = values[1]
@@ -156,6 +167,8 @@ def app():
                             window_result.close()
                             window.un_hide()
                             break
+                        if event == "Инструкция":
+                            informationWindow()
                         if event == "Сохранить файл" or event == "Сохранить файл как...":
                             if event == "Сохранить файл как...":
                                 file_name = sg.popup_get_file('Выберите файл или введите название файла', title="Сохранить файл как...")
