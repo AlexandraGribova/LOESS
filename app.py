@@ -55,7 +55,7 @@ def app():
     #-- Самая важная часть, второй раз я это не напишу --#
     def create_row(row_counter):
         row = [sg.pin(
-            sg.Col([[sg.Text('Число параметров\t', pad=((15,5), (15,0))),
+            sg.Col([[sg.Text('Число факторов\t', pad=((15,5), (15,0))),
                      sg.Spin(number, 1, key=('-PARAM_NUM_-', row_counter), pad=(15, (15,0)), readonly=True, size=4, enable_events=True)],
                    [sg.Text('Степень полинома\t', pad=((15,5), 5)),
                     sg.Spin(number, 2, key=('-DEGREE_-', row_counter), pad=(15, 5), readonly=True, size=4, enable_events=True)],
@@ -71,9 +71,9 @@ def app():
               [sg.Text('Файл: '), sg.InputText(), sg.FileBrowse('Выбрать файл')],
               [sg.Column([create_row(1)], k='-ROW_PANEL1-', vertical_alignment='top'),
                sg.Column([[]], k='-ROW_PANEL2-', vertical_alignment='top')],
-              [sg.Button('Ввести дополнительный параметор', key='-ADD_INPUT-')],
+              [sg.Button('Ввести дополнительный параметр', key='-ADD_INPUT-')],
               [sg.Button('Ввод', key='-INPUT-'), sg.Button('Выход', key='-CANCEL-')]]
-    window = sg.Window('Имя окна', layout, finalize=True)
+    window = sg.Window('MultiRegression', layout, finalize=True)
     window[('-ROW-',1)].Widget.configure(borderwidth=1, relief=sg.DEFAULT_FRAME_RELIEF)
     frame = 1
     block_number = 1
@@ -148,17 +148,19 @@ def app():
                     data = []
                     for l in range(len(active_windows)):
                         data.append([])
+                        data[l].append(win_name[l])
                         data[l].append(eps_new[l][0])
                         data[l].append(eps_new[l][1])
-                    headings = ['Кроссвалидация', 'RMSE']
+                    headings = ['Заголовок', 'Кросс-валидация', 'RMSE']
                     figure, size_w = create_plot(xx, yy, xx_new, yy_new, win_name)
                     layout_result = [[sg.Menubar(menu_def_second, tearoff=False)],
                                      [sg.Text('График:')],
                                      [sg.Canvas(key='-CANVAS-', size=size_w)],
                                      [sg.Table(values=data, headings=headings, expand_x=True, justification='center',
-                                               num_rows=2, key='-TABLE-', row_height=35, tooltip='This is a table')],
+                                               num_rows=2, key='-TABLE-', row_height=50, tooltip='This is a table',
+                                               background_color='white', text_color='black')],
                                      [sg.Button('Выход', key='-CANCEL_RES-')]]
-                    window_result = sg.Window('Window Title', layout_result, finalize=True)
+                    window_result = sg.Window('MultiRegression', layout_result, finalize=True)
                     draw_figure(window_result['-CANVAS-'].TKCanvas, figure)
                     #-- Цикл для обработки "событий" и получения "значений" входных данных --#
                     while True:
