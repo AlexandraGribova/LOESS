@@ -9,21 +9,53 @@ import pandas as pd
 import loess
 
 def informationWindow():
-    inf_layout = [[sg.Text('Инструкция')],
+    inf_layout = [[sg.Text('Краткая инструкция по работе', font = "bold")],
+                  [sg.Column([[sg.Text('Главное окно программы\n'
+                           'После запуска программы пользователь первым делом встречается с главным рабочим окном программы:')],
+                  [sg.Image('instruction_1.png', size=(550,300))],
+                  [sg.Text('Описание интерфейса:'
+                           '\n1 - Клавиша для открытия инструкции'
+                           '\n2 - Окно ввода параметров регрессионной модели'
+                           '\n3 - Клавиша удаления окна ввода параметров регрессионной модели'
+                           '\n4 - Клавиша добавления окна ввода параметров регрессионной модели'
+                           '\n5 - Клавиша включения режима прогнозирования'
+                           '\n6 - Клавиша ввода данных для построения регрессионной модели'
+                           '\n7 - Клавиша выхода из приложения'
+                           '\n8 - Клавиша выбора файла с вборкой данных для построения регрессионной модели'
+                           '\n9 - Клавиша выбора файла с парметрами для прогноза')],
+                  [sg.Text(
+                      'После ввода параметров для построения регресии пользователю выдаются результаты рассчетов - \n'
+                      'графическое изображение построенной регрессионной модели и ее оценка. Полученные результаты \n'
+                      'можно сохранить, перейдя в пункт меню "Сохранить".')],
+                  [sg.Image('instruction_2.png', size=(550, 554))],
+                  [sg.Text('Описание интерфейса:'
+                      '\n1 - Клавиша для открытия инструкции'
+                      '\n2 - Клавиша для сохранения файла с результатами или изображения построенной модели'
+                      '\n3 - Параметры построенной регресии, ее оценка и график построенной модели'
+                      '\n4 - Клавиша выхода в главное рабочее окно')]],
+                             scrollable=True, vertical_scroll_only=True)],
                   [sg.Button('Выход', key='-CANCEL_INF-')]]
-    window_inf = sg.Window('Инструкция', inf_layout, finalize=True)
+    window_inf = sg.Window('Инструкция', inf_layout, finalize=True, resizable=True, size=(700, 690))
     while True:
         event, values = window_inf.read()
         # -- Если не закрыли окно, то проверяем корректность данных и обрабатываем при нажатии 'Ввод' --#
         if event == sg.WIN_CLOSED or event == '-CANCEL_INF-':
             window_inf.close()
             break
-def create_plot(xx, yy, x_new, y_new, win_name):
+
+def create_plot(xx, yy, x_new, y_new, win_name, predict_x, predict_y, is_predict):
     matplotlib.use('TkAgg')
     w, h = figsize = (7, 5)  # figure size
     fig = matplotlib.pyplot.Figure(figsize=figsize)
     area = fig.add_axes([0.15, 0.25, 0.7, 0.7])
     area.plot(xx[0], yy, 'o')
+    ## Точки для предсказания
+    if is_predict:
+        for j in range(len(predict_x)):
+            x_new[j] = x_new[j] + predict_x[j]
+            y_new[j] = y_new[j] + predict_y[j]
+            for i in range(len(predict_x[j])):
+                area.plot(predict_x, predict_y, '.', color='red')
     for i in range(len(x_new)):
         area.plot(x_new[i], y_new[i], '-', label=win_name[i])
     area.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
@@ -38,6 +70,17 @@ def draw_figure(canvas, figure):
     figure_canvas_agg.draw()
     figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
     return figure_canvas_agg
+
+def get_prediction_param(file_predict, const_n):
+    f = pd.read_csv(file_predict, sep=';', encoding='cp1251')
+    # -- Заполнение зависимого и независимого вектора --#
+    param = []
+    for i in range(const_n):
+        name = 'x' + str(i+1)
+        param.append([])
+        param[i].extend(np.asarray(f[name]))
+    param = np.array(param)
+    return param
 
 def app():
     #-- Меню --#
@@ -68,10 +111,13 @@ def app():
     # -- Главное окно --#
     layout = [[sg.Menubar(menu_def, tearoff=False)],
               [sg.Text('Выберите файл с выборкой')],
-              [sg.Text('Файл: '), sg.InputText(), sg.FileBrowse('Выбрать файл')],
+              [sg.Text('Файл: '), sg.InputText(size=(50,20), key='-INPUT_FILE-'), sg.FileBrowse('Выбрать файл')],
               [sg.Column([create_row(1)], k='-ROW_PANEL1-', vertical_alignment='top'),
                sg.Column([[]], k='-ROW_PANEL2-', vertical_alignment='top')],
               [sg.Button('Ввести дополнительный параметр', key='-ADD_INPUT-')],
+              [sg.Button("Пронозирование ", key='-PREDICT-'),
+               sg.InputText(size=(40,20), key='-PREDICT_FILE-', visible=False),
+               sg.FileBrowse('Выбрать файл', key='-PREDICT_TEXT-', visible=False)],
               [sg.Button('Ввод', key='-INPUT-'), sg.Button('Выход', key='-CANCEL-')]]
     window = sg.Window('MultiRegression', layout, finalize=True)
     window[('-ROW-',1)].Widget.configure(borderwidth=1, relief=sg.DEFAULT_FRAME_RELIEF)
@@ -101,9 +147,12 @@ def app():
                 active_windows.remove(event[1])
         if event == "Инструкция":
             informationWindow()
+        if event == '-PREDICT-':
+            window['-PREDICT_FILE-'].update(visible=True)
+            window['-PREDICT_TEXT-'].update(visible=True)
         if event == '-INPUT-':
-            if values[1]:
-                file = values[1]
+            if values['-INPUT_FILE-']:
+                file = values['-INPUT_FILE-']
                 try:
                     f = pd.read_csv(file, sep=';', encoding='cp1251')
                     #-- Заполнение зависимого и независимого вектора --#
@@ -111,6 +160,8 @@ def app():
                     xx_new = []
                     yy_new = []
                     eps_new = []
+                    predict_xx = []
+                    predict_yy = []
                     k=0
                     win_name=[]
                     for j in active_windows:
@@ -128,20 +179,28 @@ def app():
                             win_name.append('Param number: '+str(values[('-PARAM_NUM_-', j)])+\
                                 '\nDegree: '+str(values[('-DEGREE_-', j)])+\
                                 '\nWin size: '+str(values[('-WIN_SIZE_-', j)]))
+                            predict_param = []
+                            if values['-PREDICT_FILE-']:
+                                file_predict = values['-PREDICT_FILE-']
+                                predict_param = get_prediction_param(file_predict, const_n)
                             # передаваемые параметры:
                             # 1) Многомерный массив хх (каждая строка массива - выборка)
                             # 2) Одномерный массив yy
                             # 3) Степень полинома
                             # 4) Число параметров, от которых зависит вектор уу
                             # 5) Окно (доля выборки которая будет явлться окном)
-                            x_new, y_new, eps_crossv, eps_rmse = loess.MultidimLOESS(xx, yy, degree, const_n, window_size)
+                            x_new, y_new, eps_crossv, eps_rmse, predict_x, predict_y = loess.MultidimLOESS(xx, yy, degree, const_n, window_size, predict_param)
                             xx_new.append([])
                             yy_new.append([])
                             eps_new.append([])
+                            predict_xx.append([])
+                            predict_yy.append([])
                             xx_new[k].extend(x_new[0])
                             yy_new[k].extend(y_new)
                             eps_new[k].append(eps_crossv)
                             eps_new[k].append(eps_rmse)
+                            predict_xx[k].extend(predict_x)
+                            predict_yy[k].extend(predict_y)
                             k+=1
                     #-- Вывод результатов --#
                     window.hide()
@@ -152,7 +211,10 @@ def app():
                         data[l].append(eps_new[l][0])
                         data[l].append(eps_new[l][1])
                     headings = ['Заголовок', 'Кросс-валидация', 'RMSE']
-                    figure, size_w = create_plot(xx, yy, xx_new, yy_new, win_name)
+                    is_predict = 1
+                    if predict_param == []:
+                        is_predict = 0
+                    figure, size_w = create_plot(xx, yy, xx_new, yy_new, win_name, predict_xx, predict_yy,is_predict)
                     layout_result = [[sg.Menubar(menu_def_second, tearoff=False)],
                                      [sg.Text('График:')],
                                      [sg.Canvas(key='-CANVAS-', size=size_w)],

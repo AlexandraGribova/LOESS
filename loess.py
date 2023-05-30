@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 
-def MultidimLOESS(xx, yy, degree, param_num, part):
+def MultidimLOESS(xx, yy, degree, param_num, part, predict_param):
     def tricubic(x):
         y = np.zeros_like(x)
         idx = (x >= -1) & (x <= 1)
@@ -139,7 +139,7 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
             ym = n_yy[min_range]
             xmt_wm = np.transpose(xm) @ wm
             beta = np.linalg.pinv(xmt_wm @ xm) @ xmt_wm @ ym
-
+            self.beta = beta
             xp = [[1]]
             for i in range(len(n_x)):
                 for p in range(1, degree + 1):
@@ -171,6 +171,24 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
                 y_normalize = (y_new[i] - self.min_yy)/(self.max_yy - self.min_yy)
                 RMSE += (y_normalize - self.n_yy[i]) ** 2
             return np.sqrt(RMSE / len(yy))
+        def prediction(self, window, predict_param):
+            predict_x = []
+            predict_y = []
+            #predict_size = int(window * 0.05) ## 5% от размера окна
+            for i in range(len(predict_param[0])):
+                x_predict = []
+                for j in range(len(predict_param)):
+                    x_predict.append(predict_param[j][i])
+                xp = np.zeros(len(self.beta))
+                xp[0] = 1
+                for k in range(len(x_predict)):
+                    for p in range(1, degree + 1):
+                        xp[k*degree+p] = math.pow(x_predict[k], p)
+                xp = np.array(xp)
+                y_predict = (self.beta @ xp.reshape(param_num*degree + 1, 1))[0]
+                predict_x.append(x_predict)
+                predict_y.append(self.denormalize_y(y_predict))
+            return np.array(predict_x), np.array(predict_y)
 
 
     # создали экземпляр класса
@@ -188,4 +206,5 @@ def MultidimLOESS(xx, yy, degree, param_num, part):
     # подсчет кросс валидации
     eps_crossv = loess.crossValidation(point_of_interest, window, degree)
     eps_rmse = loess.RMSE(y_new)
-    return xx, y_new, eps_crossv, eps_rmse
+    predict_x, predict_y = loess.prediction(window, predict_param)
+    return xx, y_new, eps_crossv, eps_rmse, predict_param[0], predict_y
